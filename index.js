@@ -1,25 +1,27 @@
-const express = require('express')
-const app = express()
-const morgan = require('morgan')
+const express = require('express');
+const cors = require('cors');
+const app = express();
+const morgan = require('morgan');
+
+app.use(cors());
+app.use(express.static('dist'));
+app.use(express.json());
 
 morgan.token('req-body', (req) => {
   return JSON.stringify(req.body);
 });
 
 morgan.token('customStatus', (req, res) => {
-  if(res.statusCode.toString() === "200"){
-    return "200 OK!"
-  }
-  else if(res.statusCode.toString() === "400"){
-    return "400 ERROR!"
-  }
-  else{
+  if (res.statusCode.toString() === "200") {
+    return "200 OK!";
+  } else if (res.statusCode.toString() === "400") {
+    return "400 ERROR!";
+  } else {
     return res.statusCode.toString();
   }
 });
 
-app.use(morgan(':method :url :customStatus :res[content-length] - :response-time ms :req-body'))
-app.use(express.json())
+app.use(morgan(':method :url :customStatus :res[content-length] - :response-time ms :req-body'));
 
 
 let persons = [
@@ -45,6 +47,19 @@ let persons = [
       }
     ]
 
+const generateId = () => {
+  var maxId;
+  do{
+    maxId = Math.floor(Math.random() * 1000);
+    }while(persons.some(person => {
+      person.id === maxId
+      }
+    )
+  )
+  return maxId
+}
+      
+
 
 app.get('/info', (request, response) => {
     response.send(`<p>Phonebook has info for ${persons.length} people</p>\n<p>${Date()}</p>`)
@@ -54,10 +69,6 @@ app.get('/api/persons', (req, res) => {
     res.json(persons)
 })
 
-/* app.get('/favicon.ico', (req, res) => {
-  return
-});
- */
 app.get('/api/persons/:id', (request, response) => {
     const id = Number(request.params.id)
     const person = persons.find(person => {
@@ -90,25 +101,6 @@ app.delete('/api/persons/:id', (request, response) => {
     
 })
 
-const generateId = () => {
-  var maxId;
-  do{
-    maxId = Math.floor(Math.random() * 1000);
-    }while(persons.some(person => {
-      person.id === maxId
-      }
-    )
-  )
-  return maxId
-}
-
-/* const generateId = () => {
-  const maxId = persons.length > 0
-    ? Math.max(...persons.map(n => n.id))
-    : 0
-  return maxId + 1
-} */
-  
 app.post('/api/persons', (request, response) => {
     const body = request.body
     
@@ -141,7 +133,7 @@ app.post('/api/persons', (request, response) => {
     response.json(person)
     })
 
-const PORT = 3001
+const PORT = process.env.PORT || 3001
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`)
 })
