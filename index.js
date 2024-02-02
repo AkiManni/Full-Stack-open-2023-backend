@@ -9,6 +9,11 @@ app.use(cors());
 app.use(express.static('dist'));
 app.use(express.json());
 
+// had to get rid of this, since somehow it constantly kept trying to GET it eventhough it is non-existent in the backend
+app.use('/favicon.ico', (req, res) => {
+  res.status(204).end();
+});
+
 morgan.token('req-body', (req) => {
   return JSON.stringify(req.body);
 });
@@ -25,25 +30,10 @@ morgan.token('customStatus', (req, res) => {
 
 app.use(morgan(':method :url :customStatus :res[content-length] - :response-time ms :req-body'));
 
-
 let persons = []
 
-const generateId = () => {
-  var maxId;
-  do{
-    maxId = Math.floor(Math.random() * 1000);
-    }while(persons.some(person => {
-      person.id === maxId
-      }
-    )
-  )
-  return maxId
-}
-      
-
-
-app.get('/info', (request, response) => {
-    response.send(`<p>Phonebook has info for ${persons.length} people</p>\n<p>${Date()}</p>`)
+app.get('/info', async (request, response) => {
+    response.send(`<p>Phonebook has info for ${await Contact.countDocuments({})} people</p>\n<p>${Date()}</p>`)
     })
 
 
@@ -53,32 +43,21 @@ app.get('/api/persons', (request, response) => {
   })
 })
 
-
-app.get('/api/persons/:id', (request, response) => {
-  Contact.findById(request.params.id).then(contact => {
-    response.json(contact)
-  })
-})
-
-
-app.delete('/api/persons/:id', (request, response) => {
-    const id = Number(request.params.id)
-    const person = persons.find(person =>{
-      return person.id === id
-    })
-    if(person){
-      persons = persons.filter(person => person.id !== id)
-      response.status(204).end()
-    }
-    else{
+app.get('/api/persons/:id', (request, response, next) => {
+  Contact.findById(request.params.id)
+  .then(
+    contact => {
+    if(contact){
+      response.json(contact)
+    } else {
       response.status(404).end()
-      console.log("Person with id", id, "cannot be found")
     }
-    
+  })
+  .catch(error => 
+    next(error))
 })
 
-
-app.post('/api/persons', (request, response) => {
+app.post('/api/persons', (request, response, next) => {
   const body = request.body
 
   if (body.name === undefined) {
@@ -88,49 +67,67 @@ app.post('/api/persons', (request, response) => {
     return response.status(400).json({ error: 'number missing' })
   }
 
-  const contact = new Contact({
-    name: body.name,
-    number: body.number,
-  })
-
-  contact.save().then(savedContact => {
-    response.json(savedContact)
-  })
+  Contact.findOne(body.name)
+    .then(existingContact => {
+      if (existingContact) {
+        return app.put(`/api/persons/${existingContact.id}`, request, response);
+      } 
+      else {
+        const contact = new Contact(
+          {
+          name: body.name,
+          number: body.number,
+          }
+        )
+        return contact.save()
+      }
+    })
+    .then(savedContact => {
+      response.json(savedContact)
+    })
+    .catch(error => next(error))
 })
 
+app.put('/api/persons/:id', (request, response, next) => {
+  const body = request.body
 
+  const contact = {
+    name: body.name,
+    number: body.number,
+  }
 
-app.post('/api/persons', (request, response) => {
-    const body = request.body
-    
-    if (!body.name) {
-        return response.status(400).json({ 
-        error: 'name missing' 
-        })
-    }
-
-    if (!body.number) {
-        return response.status(400).json({ 
-        error: 'number missing' 
-        })
-    }
-
-    if (persons.find(person => person.name === body.name)){
-        return response.status(400).json({ 
-        error: 'name must be unique' 
-        })
-    }
-    
-    const person = {
-        id: generateId(),
-        name: body.name,
-        number: body.number
-    }
-    
-    persons = persons.concat(person)
-    
-    response.json(person)
+  Contact.findByIdAndUpdate(request.params.id, contact, { new: true })
+    .then(updatedContact => {
+      response.json(updatedContact)
     })
+    .catch(error => next(error))
+})
+
+app.delete('/api/persons/:id', (request, response, next) => {
+  Contact.findByIdAndDelete(request.params.id)
+    .then(result => {
+      response.status(204).end()
+    })
+    .catch(error => next(error))
+})
+
+// Error handlings:
+const unknownEndpoint = (request, response) => {
+  response.status(404).send({ error: 'unknown endpoint' })
+}
+
+const errorHandler = (error, request, response, next) => {
+  console.error(error.message)
+
+  if (error.name === 'CastError') {
+    return response.status(400).send({ error: 'malformatted id' })
+  }
+  next(error)
+}
+
+// !! Must be registered after every other middlewares
+app.use(unknownEndpoint)
+app.use(errorHandler)
 
 const PORT = process.env.PORT || 3001
 app.listen(PORT, () => {
