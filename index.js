@@ -57,36 +57,43 @@ app.get('/api/persons/:id', (request, response, next) => {
     next(error))
 })
 
-app.post('/api/persons', (request, response, next) => {
+app.post('/api/persons', (request, response) => {
   const body = request.body
-
+  
   if (body.name === undefined) {
-    return response.status(400).json({ error: 'name missing' })
+  return response.status(400).json({ error: 'name missing' })
   }
   if (body.number === undefined) {
-    return response.status(400).json({ error: 'number missing' })
+  return response.status(400).json({ error: 'number missing' })
   }
 
-  Contact.findOne(body.name)
+  Contact.findOne({ name: body.name })
     .then(existingContact => {
       if (existingContact) {
-        return app.put(`/api/persons/${existingContact.id}`, request, response);
-      } 
-      else {
-        const contact = new Contact(
-          {
-          name: body.name,
-          number: body.number,
-          }
+        Contact.findByIdAndUpdate(
+          existingContact.id,
+          { number: body.number },
+          { new: true }
         )
-        return contact.save()
+          .then(savedContact => {
+            response.json(savedContact);
+          })
+          .catch(error => next(error));
+      } else {
+        const contact = new Contact({
+          name: body.name,
+          number: body.number
+        });
+    
+        contact
+          .save()
+          .then(savedContact => {
+            response.json(savedContact);
+          })
+          .catch(error => next(error));
       }
     })
-    .then(savedContact => {
-      response.json(savedContact)
-    })
-    .catch(error => next(error))
-})
+});
 
 app.put('/api/persons/:id', (request, response, next) => {
   const body = request.body
