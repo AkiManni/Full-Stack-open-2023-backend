@@ -70,15 +70,24 @@ app.post('/api/persons', (request, response) => {
   Contact.findOne({ name: body.name })
     .then(existingContact => {
       if (existingContact) {
-        Contact.findByIdAndUpdate(
+        app.put(`/api/persons/${existingContact.id}`, request, response)    
+          .then(savedContact => {
+            response.json(savedContact)
+          })
+          .catch(error => next(error))
+      
+          // Could be done with alternative way with Mongoose's findByIdAndUpdate
+        
+        /* Contact.findByIdAndUpdate(
           existingContact.id,
           { number: body.number },
           { new: true }
         )
           .then(savedContact => {
-            response.json(savedContact);
+            response.json(savedContact)
           })
-          .catch(error => next(error));
+          .catch(error => next(error)) */
+          
       } else {
         const contact = new Contact({
           name: body.name,
