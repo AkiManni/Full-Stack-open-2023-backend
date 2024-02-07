@@ -32,6 +32,22 @@ app.use(morgan(':method :url :customStatus :res[content-length] - :response-time
 
 let persons = []
 
+// Error handlings:
+const unknownEndpoint = (request, response) => {
+  response.status(404).send({ error: 'unknown endpoint' })
+}
+
+const errorHandler = (error, request, response, next) => {
+  console.error(error.message)
+
+  if (error.name === 'CastError') {
+    return response.status(400).send({ error: 'malformatted id' })
+  } else if (error.name === 'ValidationError') {    
+    return response.status(400).json({ error: error.message })  
+  }
+  next(error)
+}
+
 app.get('/info', async (request, response) => {
     response.send(`<p>Phonebook has info for ${await Contact.countDocuments({})} people</p>\n<p>${Date()}</p>`)
     })
@@ -57,7 +73,7 @@ app.get('/api/persons/:id', (request, response, next) => {
     next(error))
 })
 
-app.post('/api/persons', (request, response) => {
+app.post('/api/persons', (request, response, next) => {
   const body = request.body
   
   if (body.name === undefined) {
@@ -70,24 +86,28 @@ app.post('/api/persons', (request, response) => {
   Contact.findOne({ name: body.name })
     .then(existingContact => {
       if (existingContact) {
-        app.put(`/api/persons/${existingContact.id}`, request, response)    
-          .then(savedContact => {
-            response.json(savedContact)
-          })
-          .catch(error => next(error))
-      
-          // Could be done with alternative way with Mongoose's findByIdAndUpdate
-        
-        /* Contact.findByIdAndUpdate(
-          existingContact.id,
-          { number: body.number },
-          { new: true }
-        )
+    
+       /*  app.put(`/api/persons/${existingContact.id}`, request, response)    
           .then(savedContact => {
             response.json(savedContact)
           })
           .catch(error => next(error)) */
-          
+      
+          // Task 3.17* requested using calling PUT method, so I did and the POST part worked, 
+          // but when testing the later part 3.20 -
+          // I noticed that when I tried to send new modified number on Postman to a already existing one, it caused a crash.
+          // that findByIdAndUpdate which was used in the examples, seemed to work as a roundabout for that. 
+        
+          Contact.findByIdAndUpdate(
+            existingContact.id,
+            { number: body.number },
+            { new: true }
+          )
+          .then(savedContact => {
+            response.json(savedContact)
+          })
+          .catch(error => next(error))
+
       } else {
         const contact = new Contact({
           name: body.name,
@@ -105,14 +125,13 @@ app.post('/api/persons', (request, response) => {
 });
 
 app.put('/api/persons/:id', (request, response, next) => {
-  const body = request.body
+  const { name, number } = request.body
 
-  const contact = {
-    name: body.name,
-    number: body.number,
-  }
-
-  Contact.findByIdAndUpdate(request.params.id, contact, { new: true })
+  Contact.findByIdAndUpdate(
+  request.params.id, 
+  { name, number },    
+  { new: true, runValidators: true, context: 'query' }
+  )
     .then(updatedContact => {
       response.json(updatedContact)
     })
@@ -126,20 +145,6 @@ app.delete('/api/persons/:id', (request, response, next) => {
     })
     .catch(error => next(error))
 })
-
-// Error handlings:
-const unknownEndpoint = (request, response) => {
-  response.status(404).send({ error: 'unknown endpoint' })
-}
-
-const errorHandler = (error, request, response, next) => {
-  console.error(error.message)
-
-  if (error.name === 'CastError') {
-    return response.status(400).send({ error: 'malformatted id' })
-  }
-  next(error)
-}
 
 // !! Must be registered after every other middlewares
 app.use(unknownEndpoint)
