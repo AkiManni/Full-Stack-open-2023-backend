@@ -5,7 +5,7 @@ if (process.argv.length<3) {
   process.exit(1)
 }
 
-if (process.argv.length==4) {
+if (process.argv.length===4) {
   console.log('Please include number also as an argument')
   process.exit(1)
 }
@@ -28,29 +28,30 @@ const contactInfoSchema = new mongoose.Schema({
 
 const ContactInfo = mongoose.model('Contact', contactInfoSchema)
 
-if(process.argv.length==3){
+if(process.argv.length===3){
   ContactInfo.find({}).then(result => {
-    
+
     result.forEach((contactInfo, index) => {
       if (index === 0){
-        console.log("\nphonebook:")
+        console.log('\nphonebook:')
       }
       console.log(contactInfo.name, contactInfo.number, )
       if (index === result.length - 1) {
-        console.log();
+        console.log()
       }
     })
     mongoose.connection.close()
   })
 }
 
-if(process.argv.length == 5){
+if(process.argv.length === 5){
   const contactInfo = new ContactInfo({
     name: contactName,
     number: contactNumber,
   })
-  
-   contactInfo.save().then(result => {
+
+  // eslint-disable-next-line no-unused-vars
+  contactInfo.save().then(result => {
     console.log('added ', process.argv[3], ' number ', process.argv[4], ' to phonebook')
     mongoose.connection.close()
   })
